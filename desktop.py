@@ -26,7 +26,7 @@ def main():
     log = (data / "desktop.log").open("a", encoding="utf-8", buffering=1)
     sys.stdout = sys.stderr = log
 
-    from PySide6.QtCore import QLockFile, QStandardPaths, QTimer, QUrl
+    from PySide6.QtCore import QLockFile, QStandardPaths, QTimer, QUrl, QObject, Signal
     from PySide6.QtGui import QAction, QDesktopServices, QIcon, QFont, QFontDatabase
     from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
     from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
@@ -158,6 +158,84 @@ def main():
         action = QAction(title, window)
         action.triggered.connect(callback)
         menu.addAction(action)
+
+    # Worker threads keep the window responsive during network and disk work.
+    from app import APP_VERSION
+    import updater
+    from datetime import datetime
+
+    class UpdateEvents(QObject):
+        done = Signal(object, str, bool)
+
+    update_events = UpdateEvents(window)
+    update_action = QAction("Verificar atualizações", window)
+    window.menuBar().addMenu("Atualizações").addAction(update_action)
+    update_busy = [False]
+
+    def check_updates(manual=False):
+        if update_busy[0]:
+            return
+        update_busy[0] = True
+        update_action.setEnabled(False)
+        def worker():
+            try:
+                update_events.done.emit(updater.latest(APP_VERSION), "", manual)
+            except Exception as error:
+                update_events.done.emit(None, str(error), manual)
+        threading.Thread(target=worker, daemon=True).start()
+
+    def update_ready(result, error, manual):
+        update_busy[0] = False
+        update_action.setEnabled(True)
+        if error:
+            window.statusBar().showMessage("Atualizações: " + error, 15000)
+            if manual:
+                QMessageBox.information(window, "Atualizações", error)
+            return
+        if result and "stage" in result:
+            try:
+                backup_dir = data / "backups"
+                backup_dir.mkdir(exist_ok=True)
+                backup_path = backup_dir / ("antes-atualizacao-" + datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".json")
+                backup_path.write_text(json.dumps(DesktopHandler.store.backup(), ensure_ascii=False), encoding="utf-8")
+                import sqlite3
+                with DesktopHandler.store.connect() as source, sqlite3.connect(backup_path.with_suffix(".sqlite3")) as target:
+                    source.backup(target)
+                updater.launch_install(result["stage"], sys.executable, data, os.getpid())
+                window.close()
+            except Exception as failure:
+                QMessageBox.warning(window, "Atualização não instalada", str(failure))
+            return
+        if not result:
+            if manual:
+                QMessageBox.information(window, "Atualizações", "Você já está usando a versão mais recente disponível.")
+            return
+        if not getattr(sys, "frozen", False):
+            QMessageBox.information(window, "Atualizações", "A instalação pelo aplicativo está disponível no executável Windows.")
+            return
+        answer = QMessageBox.question(window, "Nova versão disponível", result["tag"] + " disponível. Atualizar agora?\nO diário terá um backup e o Huntlog será reiniciado.")
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        update_busy[0] = True
+        update_action.setEnabled(False)
+        window.statusBar().showMessage("Baixando e verificando atualização. Aguarde…")
+        def download_worker():
+            try:
+                stage = updater.download(result)
+                update_events.done.emit({"stage": str(stage)}, "", True)
+            except Exception as failure:
+                update_events.done.emit(None, str(failure), True)
+        threading.Thread(target=download_worker, daemon=True).start()
+
+    update_events.done.connect(update_ready)
+    update_action.triggered.connect(lambda: check_updates(True))
+    if not args.self_test:
+        QTimer.singleShot(5000, lambda: check_updates(False))
+        update_result = data / "update-result.txt"
+        if update_result.exists():
+            message = update_result.read_text(encoding="utf-8-sig")
+            update_result.unlink()
+            QTimer.singleShot(1000, lambda: QMessageBox.information(window, "Atualização", message))
 
     if args.self_test:
         attempts = [0]

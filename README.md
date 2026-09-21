@@ -8,7 +8,7 @@ Abra [a versão mais recente](https://github.com/hesuch/huntlog/releases/latest)
 
 Os dados ficam em `%LOCALAPPDATA%\HuntlogDesktop`, fora da pasta do programa. Faça backup antes de atualizar. O pacote distribuído começa vazio e não inclui histórico, fotos pessoais nem preços particulares.
 
-Este repositório é privado: somente o proprietário e as pessoas convidadas têm acesso aos arquivos e Releases. O programa ainda não instala atualizações automaticamente.
+Este repositório é privado: somente o proprietário e as pessoas convidadas têm acesso aos arquivos e Releases. A partir da versão 0.6.1, use o menu Atualizações > Verificar atualizações. Ao abrir, o aplicativo também consulta novas versões. A instalação exige sua confirmação, gera um backup e reinicia o Huntlog. Enquanto este repositório estiver privado, a consulta sem login não estará disponível. Quem usa a versão 0.6.0 precisa baixar a 0.6.1 manualmente uma vez. A atualização substitui apenas Huntlog.exe e _internal; os dados pessoais ficam intactos. Se o teste de abertura falhar, a versão anterior é restaurada. A cópia anterior do programa fica em update-rollback-* na pasta de instalação.
 
 ## Publicar uma versão
 
