@@ -1,0 +1,30 @@
+name: Publicar versão Windows
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: release-windows
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Instalar dependências
+        run: python -m pip install -r requirements-build.txt
+      - name: Compilar, testar e empacotar
+        run: python build_release.py
+      - name: Publicar ZIP no GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content version.txt -Raw).Trim()
+          gh release create "v$version" "release/Huntlog-Desktop-Windows.zip" "release/Huntlog-Desktop-Windows.zip.sha256.txt" --target "${{ github.sha }}" --title "Huntlog $version" --notes "Versão Windows. Extraia todo o ZIP e abra Huntlog.exe. Histórico salvo separadamente em LOCALAPPDATA/HuntlogDesktop."
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
