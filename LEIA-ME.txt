@@ -1,4 +1,4 @@
-HUNTLOG DESKTOP 0.6.3 — WINDOWS 64 BITS
+HUNTLOG DESKTOP 0.6.4 — WINDOWS 64 BITS
 
 COMO USAR
 1. Extraia TODO o conteúdo do ZIP para uma pasta do computador.
@@ -53,3 +53,4 @@ Use Atualizações > Verificar atualizações. O aplicativo também consulta ao 
 Ao confirmar, faz backup, baixa a nova versão, verifica o pacote e reinicia.
 Se a nova versão falhar no teste de abertura, restaura a anterior.
 A consulta depende de o repositório hesuch/huntlog estar público no GitHub.
+

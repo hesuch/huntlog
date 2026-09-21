@@ -112,7 +112,7 @@ try {
     }
     ('Atualização cancelada; versão anterior restaurada. ' + $failure) | Set-Content -LiteralPath (Join-Path $Data 'update-result.txt') -Encoding UTF8
 }
-if (!$NoRestart) { Start-Process -FilePath (Join-Path $Install 'Huntlog.exe') -ArgumentList @('--data-dir',('"' + $Data + '"')) -WindowStyle Hidden }
+if (!$NoRestart) { Start-Process -FilePath (Join-Path $Install 'Huntlog.exe') -ArgumentList @('--data-dir',('"' + $Data + '"')) -WindowStyle Normal }
 '''
 
 def launch_install(stage, executable, data, pid):

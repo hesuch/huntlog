@@ -19,7 +19,7 @@ from wiki_assets import WikiSprites, TYPES as IMAGE_TYPES, key as pokemon_key, c
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DB = ROOT / "data" / "hunts.sqlite3"
-APP_VERSION = "0.6.3-desktop"
+APP_VERSION = "0.6.4-desktop"
 TERROR_IMAGES = json.loads((ROOT / "static" / "terror-images.json").read_text(encoding="utf-8"))
 DUNGEONS = json.loads((ROOT / "static" / "dungeons.json").read_text(encoding="utf-8"))
 DUNGEON_IMAGES = json.loads((ROOT / "static" / "dungeon-images.json").read_text(encoding="utf-8"))
