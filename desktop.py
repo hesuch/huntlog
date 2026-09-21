@@ -28,7 +28,8 @@ def main():
 
     from PySide6.QtCore import QLockFile, QStandardPaths, QTimer, QUrl, QObject, Signal
     from PySide6.QtGui import QAction, QDesktopServices, QIcon, QFont, QFontDatabase
-    from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
+    from PySide6.QtWidgets import (QApplication, QFileDialog, QMainWindow, QMessageBox,
+                                  QDialog, QVBoxLayout, QLabel, QPlainTextEdit, QDialogButtonBox)
     from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
     from PySide6.QtWebEngineWidgets import QWebEngineView
     from app import Handler, LocalHTTPServer, Store
@@ -213,8 +214,25 @@ def main():
         if not getattr(sys, "frozen", False):
             QMessageBox.information(window, "Atualizações", "A instalação pelo aplicativo está disponível no executável Windows.")
             return
-        answer = QMessageBox.question(window, "Nova versão disponível", result["tag"] + " disponível. Atualizar agora?\nO diário terá um backup e o Huntlog será reiniciado.")
-        if answer != QMessageBox.StandardButton.Yes:
+        dialog = QDialog(window)
+        dialog.setWindowTitle("Novidades da atualização")
+        dialog.resize(640, 480)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel(result["tag"] + " disponível — veja o que mudou:"))
+        notes = QPlainTextEdit(dialog)
+        notes.setReadOnly(True)
+        notes.setPlainText(result.get("notes") or "Esta versão não possui novidades descritas.")
+        layout.addWidget(notes)
+        footer = QLabel("Seu diário terá um backup. O Huntlog será reiniciado após a instalação.")
+        footer.setWordWrap(True)
+        layout.addWidget(footer)
+        buttons = QDialogButtonBox(dialog)
+        download_button = buttons.addButton("Baixar e atualizar", QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton("Agora não", QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         update_busy[0] = True
         update_action.setEnabled(False)

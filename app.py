@@ -15,11 +15,11 @@ import threading
 from urllib.parse import urlparse, parse_qs
 from urllib.request import urlopen
 import webbrowser
-from wiki_assets import WikiSprites, TYPES as IMAGE_TYPES, key as pokemon_key
+from wiki_assets import WikiSprites, TYPES as IMAGE_TYPES, key as pokemon_key, canonical_pokemon_name
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DB = ROOT / "data" / "hunts.sqlite3"
-APP_VERSION = "0.6.2-desktop"
+APP_VERSION = "0.6.3-desktop"
 TERROR_IMAGES = json.loads((ROOT / "static" / "terror-images.json").read_text(encoding="utf-8"))
 DUNGEONS = json.loads((ROOT / "static" / "dungeons.json").read_text(encoding="utf-8"))
 DUNGEON_IMAGES = json.loads((ROOT / "static" / "dungeon-images.json").read_text(encoding="utf-8"))
@@ -34,8 +34,35 @@ BOSS_RULES = {
 }
 
 
+
+BOSS_IMAGES = json.loads((ROOT / 'static/boss-images.json').read_text(encoding='utf-8'))
+BOSS_RULES['images'] = BOSS_IMAGES
+
+def boss_image(name, category):
+    normalized = boss_key(name)
+    if normalized in ('entei', 'raikou', 'suicune') and category not in ('terror', 'mixed'):
+        return ''
+    return BOSS_IMAGES.get(normalized, '')
+
+DUNGEON_BOSS_IMAGES = {alias: DUNGEON_IMAGES[location] for location, aliases in BOSS_RULES['dungeons'].items()
+                       if location in DUNGEON_IMAGES for alias in aliases if alias in BOSS_RULES['unique']}
+BOSS_RULES['dungeon_images'] = DUNGEON_BOSS_IMAGES
+
+def battle_image(name, category):
+    return boss_image(name, category) or DUNGEON_BOSS_IMAGES.get(boss_key(name), '')
+
+def battle_group(enemy, record):
+    name = boss_key(enemy['name'])
+    if boss_image(enemy['name'], record['category']):
+        return 'boss'
+    if name in BOSS_RULES['unique'] or (record['category'] == 'mystery_dungeon' and
+            name in allowed_bosses('mystery_dungeon', record['location'])):
+        return 'dungeon'
+    return 'pokemon'
+
+
 def counted_enemy(enemy):
-    return enemy['included'] and enemy.get('counted', True)
+    return enemy['included'] and enemy.get('counted', True) and enemy['count'] > 0
 
 
 def allowed_bosses(category, location):
@@ -46,6 +73,16 @@ NORMAL_ENCOUNTERS = {pokemon_key(name) for name in (
     "Mega Falinkz", "Mega Falinks", "Mega Sharpedo", "Mega Baxcalibur",
     "Mega Glimmora", "Mega Scovillain", "Mega Raichu X", "Mega Chimecho",
 )}
+
+
+POKEMON_TIERS = {pokemon_key(name): tier for name, tier in json.loads(
+    (ROOT / "static" / "pokemon-tiers.json").read_text(encoding="utf-8"))["tiers"].items()}
+NORMAL_ENCOUNTERS |= {name for name, tier in POKEMON_TIERS.items() if tier in ("2", "3")}
+
+
+def is_rare_encounter(name, reported):
+    normalized = pokemon_key(canonical_pokemon_name(name))
+    return normalized not in NORMAL_ENCOUNTERS and (reported is True or normalized == "nightmarecrystal")
 
 
 def nightmare_hunt(name):
@@ -73,7 +110,7 @@ def location_suggestions(enemies):
     if "gianttyranitar" in totals:
         matches.add("The Darkness")
     dungeon = next(iter(matches)) if len(matches) == 1 else ""
-    return {"hunt": hunt, "terror": "Terror", "mystery_dungeon": dungeon}
+    return {"hunt": hunt, "terror": "Terror", "mystery_dungeon": dungeon, "mixed": "Mista"}
 
 
 POKEMON_NAMES = {pokemon_key(name) for name in json.loads(
@@ -106,13 +143,44 @@ def label(value, maximum=200):
     return str(value).strip()[:maximum]
 
 
+
+def adjust_ghost_helpers(enemies, items):
+    """Keep original counts so reads, edits and backup restores are idempotent."""
+    if not any(pokemon_key(e['name']) == 'bossgiantghost' and e['included'] and e['count'] > 0 for e in enemies):
+        return None
+    costs = {'normal': 1, 'hard': 2, 'expert': 4}
+    difficulties = {difficulty for difficulty in costs if any(
+        i['kind'] == 'drop' and i['included'] and i['count'] > 0 and
+        pokemon_key(i['name']) == 'ghostlylootbag' + difficulty for i in items)}
+    if len(difficulties) != 1:
+        return None
+    difficulty = next(iter(difficulties))
+    tags = sum(i['count'] for i in items if i['kind'] == 'supply' and i['included'] and
+               pokemon_key(i['name']) in ('spelltag', 'spelltags'))
+    if not tags or tags % costs[difficulty]:
+        return None
+    attempts = tags // costs[difficulty]
+    remaining = {name: count * attempts for name, count in
+                 {'gastly': 4, 'haunter': 2, 'gengar': 1, 'shinygengar': 1}.items()}
+    removed = 0
+    for enemy in enemies:
+        name = pokemon_key(enemy['name'])
+        if enemy['included'] and name in remaining:
+            discount = min(enemy['count'], remaining[name])
+            enemy['count'] -= discount
+            enemy['ghost_excluded'] = discount
+            remaining[name] -= discount
+            removed += discount
+    return {'difficulty': difficulty, 'attempts': attempts, 'spell_tags': tags, 'excluded': removed}
+
+
 def normalize_record(candidate):
     """Store only selected session, item and defeated-Pokémon fields."""
     if not isinstance(candidate, dict):
         raise ValueError("O registro deve ser um objeto JSON.")
     category = candidate.get("category", "hunt")
-    if category not in ("hunt", "terror", "mystery_dungeon"):
-        raise ValueError("Escolha Hunt, Terror ou Mystery Dungeon.")
+    if category not in ("hunt", "terror", "mystery_dungeon", "mixed"):
+        raise ValueError("Escolha Hunt, Terror, Mystery Dungeon ou Mista.")
     started = label(candidate.get("started"))
     try:
         parsed = datetime.fromisoformat(started)
@@ -155,12 +223,13 @@ def normalize_record(candidate):
         for enemy in enemies:
             if not isinstance(enemy, dict) or not label(enemy.get("name")):
                 raise ValueError("Existe um Pokémon derrotado sem nome válido.")
-            cleaned.append({"name": label(enemy["name"]),
-                            "count": number(enemy.get("count"), "Pokémon derrotados", integer=True),
-                            "rare": pokemon_key(enemy["name"]) not in NORMAL_ENCOUNTERS and
-                                    (enemy.get("rare") is True or pokemon_key(enemy["name"]) == "nightmarecrystal"),
+            cleaned.append({"name": canonical_pokemon_name(label(enemy["name"])),
+                            "count": number(enemy.get("reported_count", enemy.get("count")), "Pokémon derrotados", integer=True),
+                            "reported_count": number(enemy.get("reported_count", enemy.get("count")), "Pokémon derrotados", integer=True),
+                            "rare": is_rare_encounter(enemy["name"], enemy.get("rare")),
                             "included": enemy.get("included") is not False})
         enemies = cleaned
+    ghost_adjustment = adjust_ghost_helpers(enemies or [], items)
     pokemon_names = POKEMON_NAMES | {pokemon_key(e["name"]) for e in enemies or []}
     pokemon_names |= {name.removeprefix("nightmare") for name in pokemon_names}
     for item in items:
@@ -170,7 +239,8 @@ def normalize_record(candidate):
     boss_location = label(candidate.get('location')) or suggested_location
     allowed = allowed_bosses(category, boss_location)
     for enemy in enemies or []:
-        enemy['counted'] = category == 'hunt' or boss_key(enemy['name']) in allowed
+        enemy['image_name'] = battle_image(enemy['name'], category)
+        enemy['counted'] = category in ('hunt', 'mixed') or boss_key(enemy['name']) in allowed or (category == 'terror' and bool(boss_image(enemy['name'], category)))
     kills = None if enemies is None else sum(e["count"] for e in enemies if counted_enemy(e))
     rare_kills = None if enemies is None else sum(e["count"] for e in enemies if counted_enemy(e) and e["rare"])
     raw = money_sum(i["total"] for i in items if i["kind"] == "drop" and i["included"])
@@ -201,6 +271,7 @@ def normalize_record(candidate):
         "server": label(candidate.get("server")),
         "pokemon": label(candidate.get("pokemon")), "notes": label(candidate.get("notes"), 2000),
         "extras": extras, "items": items, "raw": raw, "supplies": supplies,
+        "ghost_adjustment": ghost_adjustment,
         "enemies": enemies, "kills": kills, "rare_kills": rare_kills, "capture_count": capture_count,
         "boss_rules": BOSS_RULES,
         "kills_per_hour": kills * 3600 / duration if kills is not None else None,
@@ -333,7 +404,8 @@ def statistics(records):
     for record in tracked:
         for enemy in record["enemies"]:
             if counted_enemy(enemy):
-                group = defeated.setdefault(enemy["name"], {"name": enemy["name"], "count": 0, "rare_count": 0})
+                division = battle_group(enemy, record)
+                group = defeated.setdefault((enemy["name"], division), {"name": enemy["name"], "battle_group": division, "image_name": battle_image(enemy["name"], record["category"]), "count": 0, "rare_count": 0})
                 group["count"] += enemy["count"]
                 group["rare_count"] += enemy["count"] if enemy["rare"] else 0
     kills = sum(e["count"] for e in defeated.values())

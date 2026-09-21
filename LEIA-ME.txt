@@ -1,10 +1,10 @@
-HUNTLOG DESKTOP 0.6.2 — WINDOWS 64 BITS
+HUNTLOG DESKTOP 0.6.3 — WINDOWS 64 BITS
 
 COMO USAR
 1. Extraia TODO o conteúdo do ZIP para uma pasta do computador.
 2. Abra Huntlog.exe. Ele abre uma janela própria.
 3. Em Registrar hunt, cole ou selecione o JSON exportado pelo PXG.
-4. Escolha Hunt, Terror ou Mystery Dungeon, confira os valores e salve.
+4. Escolha Hunt, Terror, Mystery Dungeon ou Mista, confira os valores e salve.
 
 Não precisa instalar Python, Codex, Chrome, Edge ou extensões.
 Mantenha a pasta _internal junto do Huntlog.exe. Não execute de dentro do ZIP.

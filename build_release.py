@@ -11,6 +11,7 @@ with tempfile.TemporaryDirectory(prefix="huntlog-qa-") as temp:
 shutil.copy2(root / "LEIA-ME.txt", release / "LEIA-ME.txt")
 shutil.copy2(root / "README.md", release / "README.md")
 shutil.copy2(root / "FONTES.txt", release / "FONTES.txt")
+shutil.copy2(root / "RELEASE-NOTES.md", release / "NOVIDADES.md")
 licenses = release / "licencas"
 licenses.mkdir(exist_ok=True)
 with zipfile.ZipFile(root / "third-party-notices.zip") as z:
@@ -24,7 +25,7 @@ for name in ("PyInstaller", "PySide6", "PySide6_Essentials", "PySide6_Addons", "
     for file in dist.files or []:
         if "/licenses/" in str(file).lower():
             shutil.copy2(dist.locate_file(file), dest / Path(str(file)).name)
-source_names = ["updater.py", "test_updater.py", "app.py", "desktop.py", "wiki_assets.py", "exemplo.json", "huntlog.ico", "assets.zip", "third-party-notices.zip", "Huntlog.spec", "requirements-build.txt", "prepare.py", "build_release.py", "test_release.py", "Compilar.ps1", "README.md", "LEIA-ME.txt", "version.txt", "FONTES.txt"]
+source_names = ["updater.py", "test_updater.py", "app.py", "desktop.py", "wiki_assets.py", "exemplo.json", "huntlog.ico", "assets.zip", "third-party-notices.zip", "Huntlog.spec", "requirements-build.txt", "prepare.py", "build_release.py", "test_release.py", "test_pending_release.py", "test_interface.cjs", "RELEASE-NOTES.md", "Compilar.ps1", "README.md", "LEIA-ME.txt", "version.txt", "FONTES.txt"]
 with zipfile.ZipFile(release / "codigo-fonte.zip", "w", zipfile.ZIP_DEFLATED) as z:
     for name in source_names:
         z.write(root / name, name)

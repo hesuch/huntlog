@@ -41,7 +41,10 @@ def latest(current):
         expected = f"https://github.com/{REPO}/releases/download/{release['tag_name']}/{name}"
         if assets.get(name) != expected:
             raise ValueError('Esta versão ainda não tem um pacote completo de atualização')
-    return {'tag': release['tag_name'], 'assets': assets}
+    notes = release.get('body')
+    notes = notes.strip()[:30000] if isinstance(notes, str) else ''
+    return {'tag': release['tag_name'], 'assets': assets,
+            'notes': notes or 'Esta versão não possui novidades descritas.'}
 
 def extract(archive, destination):
     destination = Path(destination).resolve()

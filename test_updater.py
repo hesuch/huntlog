@@ -9,6 +9,14 @@ import json
 import updater
 
 class UpdaterTests(unittest.TestCase):
+    def test_release_notes(self):
+        for body, expected in [(None, 'Esta versão não possui novidades descritas.'),
+                               ('  Novas abas\n- Correção do Ghost  ', 'Novas abas\n- Correção do Ghost'),
+                               ('', 'Esta versão não possui novidades descritas.')]:
+            release=self.release();release['body']=body
+            with patch('updater.read_url',return_value=json.dumps(release).encode()):
+                self.assertEqual(updater.latest('0.6.1')['notes'],expected)
+
     def release(self, tag='v0.6.2'):
         return {'tag_name': tag, 'assets': [
             {'name': name, 'browser_download_url': f'https://github.com/hesuch/huntlog/releases/download/{tag}/{name}'}

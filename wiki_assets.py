@@ -16,6 +16,11 @@ FILE_ALIASES = {'fortuneelixir': 'Fortune.png', 'solidicecube': 'SolidIce.png',
                 'goldensudowoodo': 'ShiSudowoodo.gif', 'premierball': 'Premier-ball(1).png'}
 
 
+def canonical_pokemon_name(name):
+    """Enraged is the game's label for the Mega form."""
+    return re.sub(r'^Enraged\s+(?:Mega\s+)?', 'Mega ', name.strip(), flags=re.I)
+
+
 def key(name):
     return re.sub('[^a-z0-9]', '', unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode().lower())
 
@@ -107,7 +112,7 @@ class WikiSprites:
     def get(self, name):
         if not isinstance(name, str) or not name.strip() or len(name) > 200:
             return None
-        name = name.strip()
+        name = canonical_pokemon_name(name)
         normalized = key(name)
         with self.lock:
             cached = self._cached(normalized)
