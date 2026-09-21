@@ -1,0 +1,49 @@
+HUNTLOG DESKTOP 0.6.0 — WINDOWS 64 BITS
+
+COMO USAR
+1. Extraia TODO o conteúdo do ZIP para uma pasta do computador.
+2. Abra Huntlog.exe. Ele abre uma janela própria.
+3. Em Registrar hunt, cole ou selecione o JSON exportado pelo PXG.
+4. Escolha Hunt, Terror ou Mystery Dungeon, confira os valores e salve.
+
+Não precisa instalar Python, Codex, Chrome, Edge ou extensões.
+Mantenha a pasta _internal junto do Huntlog.exe. Não execute de dentro do ZIP.
+Para compartilhar, envie o ZIP original completo.
+
+SEUS DADOS
+O primeiro uso começa com o histórico, os preços personalizados e as imagens
+personalizadas vazios. Nenhum dado de outro jogador vem neste pacote.
+O exemplo disponível na importação é fictício e só é salvo se você confirmar.
+
+O diário fica em %LOCALAPPDATA%\HuntlogDesktop, separado da pasta do programa.
+Cada usuário do Windows mantém seu próprio diário. Trocar o executável não apaga
+o histórico. O menu Arquivo > Abrir pasta dos meus dados mostra essa pasta.
+Fixados também são mantidos no perfil local do aplicativo.
+
+BACKUP
+Na aba Backup, exporte seu histórico e sua tabela de preços em JSON.
+Para levar também imagens personalizadas e preferências, feche o aplicativo e
+guarde uma cópia da pasta inteira de dados indicada acima.
+Você pode restaurar um backup JSON da versão anterior do Huntlog.
+O pacote compartilhável não importa automaticamente seu diário da versão anterior.
+
+IMAGENS E INTERNET
+As imagens incluídas funcionam sem internet. A busca de novas imagens na Wiki PXG
+e as imagens personalizadas por link precisam de conexão.
+GIFs e imagens enviados do computador são armazenados no diário local.
+Os links externos da wiki só abrem se você clicar neles.
+
+AO FECHAR
+Fechar a janela encerra o aplicativo. Não fica um servidor separado em execução.
+Para abrir novamente, use Huntlog.exe. Pode criar um atalho na Área de Trabalho.
+Esta edição não adiciona inicialização automática ao Windows.
+
+COMPATIBILIDADE
+Windows 10/11 de 64 bits. Testado em Windows 11.
+O pacote contém seu próprio motor de interface; por isso é maior que a versão web.
+Este executável não possui assinatura digital de editor.
+
+CRÉDITOS
+Huntlog é um diário independente, sem afiliação oficial com PokeXGames.
+Sprites e retratos: https://wiki.pokexgames.com/
+Veja FONTES.txt e licencas/ para bibliotecas e fontes dos recursos incluídos.

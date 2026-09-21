@@ -1,0 +1,35 @@
+{
+  "Drops": [
+    {
+      "Item": "Earth Stone",
+      "Count": 2,
+      "Unit price": 5000,
+      "Player": "Treinador Exemplo"
+    }
+  ],
+  "Supplies": [
+    {
+      "Item": "Revive",
+      "Count": 1,
+      "Unit price": 1000,
+      "Player": "Treinador Exemplo"
+    }
+  ],
+  "Session": {
+    "Session ID": "DEMO-001",
+    "Start": "2026-01-01 12:00:00",
+    "Duration seconds": 1800,
+    "Profit": 9000,
+    "Raw gains": 10000,
+    "Supplies": 1000,
+    "Status": "Finished"
+  },
+  "Enemies Defeated": [
+    {
+      "Enemy": "Pikachu",
+      "Count": 10,
+      "Rare": false,
+      "Player": "Treinador Exemplo"
+    }
+  ]
+}

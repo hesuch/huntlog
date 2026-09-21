@@ -1,0 +1,11 @@
+data/
+*.sqlite*
+*.db
+*.log
+__pycache__/
+.venv/
+build/
+dist/
+release/
+static/
+qa/

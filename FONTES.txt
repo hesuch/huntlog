@@ -1,0 +1,22 @@
+FONTES E COMPONENTES
+
+Imagens de Pokémon e itens: https://wiki.pokexgames.com/
+Mystery Dungeons: https://wiki.pokexgames.com/Mystery_Dungeons
+Nightmare Terror: https://wiki.pokexgames.com/Nightmare_Terror
+As URLs de cada imagem estão em _internal/static/sprites/catalog.json.
+
+Python 3.12.14: https://www.python.org/downloads/source/
+PySide6 / Shiboken6 6.11.2: https://code.qt.io/cgit/pyside/pyside-setup.git/?h=v6.11.2
+Qt 6.11.2: https://download.qt.io/archive/qt/6.11/6.11.2/submodules/
+Qt WebEngine: https://code.qt.io/cgit/qt/qtwebengine.git/?h=v6.11.2
+Chromium do Qt: https://code.qt.io/cgit/qt/qtwebengine-chromium.git/
+PyInstaller 6.22.3: https://github.com/pyinstaller/pyinstaller/tree/v6.22.3
+
+As bibliotecas Qt/PySide são carregadas dinamicamente da pasta _internal.
+Podem ser substituídas por compilações compatíveis. O código-fonte do aplicativo
+e as instruções de compilação estão em codigo-fonte.zip. Não há restrição adicional
+à modificação dessas bibliotecas ou à depuração das modificações permitidas por
+suas licenças. Os textos e avisos de terceiros estão na pasta licencas.
+
+Portions of this software are copyright © The FreeType Project
+(https://freetype.org). All rights reserved.
