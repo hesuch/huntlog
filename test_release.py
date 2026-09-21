@@ -26,3 +26,14 @@ class ReleaseTests(unittest.TestCase):
         for entry in json.loads((folder/"catalog.json").read_text(encoding="utf-8")).values():
             if entry.get("file"):
                 self.assertTrue((folder/entry["file"]).is_file(),entry.get("name"))
+
+    def test_content_image_associations(self):
+        from wiki_assets import key
+        root = Path("static")
+        catalog = json.loads((root / "sprites/catalog.json").read_text(encoding="utf-8"))
+        names = json.loads((root / "terror-images.json").read_text(encoding="utf-8"))
+        names += list(json.loads((root / "dungeon-images.json").read_text(encoding="utf-8")).values())
+        names += [entry["image"] for entry in json.loads((root / "nightmare-hunts.json").read_text(encoding="utf-8"))]
+        for name in names:
+            self.assertIn(key(name), catalog, name)
+            self.assertTrue((root / "sprites" / catalog[key(name)]["file"]).is_file(), name)

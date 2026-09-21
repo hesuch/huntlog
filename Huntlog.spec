@@ -25,6 +25,20 @@ for destination, source, kind in a.binaries:
     clean_binaries.append((destination, source, kind))
 a.binaries = clean_binaries
 
+# Widgets + WebEngine do not use the bundled QML UI modules. Keep Qt DLLs:
+# WebEngine can link to QtQuick/Qml even when no QML interface is used.
+def needed(entry):
+    path = Path(entry[0]).as_posix().replace('\\', '/').lower()
+    if '/qml/' in path or path.endswith('qtwebengine_devtools_resources.debug.pak'):
+        return False
+    if '/translations/' in path:
+        name = path.rsplit('/', 1)[-1]
+        return name in ('en-us.pak', 'pt-br.pak') or name.endswith(('_pt.qm', '_pt_br.qm', '_en.qm'))
+    return True
+
+a.datas = [entry for entry in a.datas if needed(entry)]
+a.binaries = [entry for entry in a.binaries if needed(entry)]
+
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [], exclude_binaries=True, name='Huntlog', debug=False,

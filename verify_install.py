@@ -3,7 +3,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parent
 sys.path.insert(0,str(root))
 import updater
-with tempfile.TemporaryDirectory(prefix='huntlog-install-qa-') as temporary:
+with tempfile.TemporaryDirectory(prefix='huntlog-install-qa-', ignore_cleanup_errors=True) as temporary:
     base=Path(temporary); install=base/'install'; stage=base/'stage'; data=base/'data'
     install.mkdir();data.mkdir()
     (install/'Huntlog.exe').write_text('old version marker')
@@ -19,3 +19,4 @@ with tempfile.TemporaryDirectory(prefix='huntlog-install-qa-') as temporary:
     assert (install/'Huntlog.exe').stat().st_size>100000
     assert list(install.glob('update-rollback-*/_internal/old-marker'))
     print('Instalacao real, abertura da nova versao e preservacao de dados: OK')
+    print(next(stage.glob('qa-*/self-test.json')).read_text(encoding='utf-8'))

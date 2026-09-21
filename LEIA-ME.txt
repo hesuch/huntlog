@@ -1,4 +1,4 @@
-HUNTLOG DESKTOP 0.6.1 — WINDOWS 64 BITS
+HUNTLOG DESKTOP 0.6.2 — WINDOWS 64 BITS
 
 COMO USAR
 1. Extraia TODO o conteúdo do ZIP para uma pasta do computador.

@@ -240,7 +240,7 @@ def main():
     if args.self_test:
         attempts = [0]
         def inspect_dom():
-            page.runJavaScript("JSON.stringify({title:document.title,text:document.body.innerText})", check_dom)
+            page.runJavaScript("JSON.stringify({title:document.title,text:document.body.innerText,images:window.__imageTest})", check_dom)
 
         def check_dom(value):
             attempts[0] += 1
@@ -251,6 +251,19 @@ def main():
                         QTimer.singleShot(250, inspect_dom)
                         return
                     raise AssertionError(state["text"])
+                if not state.get("images"):
+                    from urllib.parse import quote
+                    catalog = json.loads((root / "static/sprites/catalog.json").read_text(encoding="utf-8"))
+                    by_file = {entry["file"]: name for name, entry in catalog.items() if entry.get("file")}
+                    urls = ["/api/sprite?name=" + quote(name) for name in by_file.values()] + ["/favicon.svg", "/sprite-placeholder.svg"]
+                    page.runJavaScript("window.__imageTest={pending:true}; (async()=>{const urls=" + json.dumps(urls) + ";const errors=[]; for(const url of urls){await new Promise(resolve=>{const image=new Image();image.onload=()=>{if(!image.naturalWidth)errors.push(url);resolve();};image.onerror=()=>{errors.push(url);resolve();};image.src=url;});}window.__imageTest={count:urls.length,errors};})()")
+                    QTimer.singleShot(250, inspect_dom)
+                    return
+                if state["images"].get("pending"):
+                    QTimer.singleShot(250, inspect_dom)
+                    return
+                assert not state["images"]["errors"], state["images"]["errors"]
+                test_result.update(images=state["images"])
                 test_result.update(page_loaded=True, title=state["title"])
                 page.download(QUrl(origin + "/api/backup"), "export-test.json")
             except Exception:
