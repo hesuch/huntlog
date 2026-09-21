@@ -24,3 +24,8 @@ for(const [tab,name] of Object.entries({normal:'Aron',rare:'Shiny Gengar',dungeo
 assert(ctx.custom.includes('data:image/png;base64,test'));assert.equal(ctx.first,ctx.second);assert.equal(ctx.restored,7);
 assert(!source.includes('data-field="server"'));assert(!source.includes('data-field="pokemon"'));
 console.log('Interface: four exclusive tabs, contextual custom art, ghost preview, repeated calculation and removed fields OK');
+
+vm.runInContext(`state.draft.enemies.push({name:'Nightmare Crystal',count:2,reported_count:2,rare:true,included:false});state.draft.enemies.push({name:'Mega Aggron',count:3,reported_count:3,rare:true,included:true});recomputeDraft();globalThis.selectedCount=state.draft.rare_kills;globalThis.selector=rareSelection(state.draft);state.draft.enemies.find(e=>e.name==='Nightmare Crystal').included=true;recomputeDraft();globalThis.restoredRareCount=state.draft.rare_kills;`,ctx);
+assert.equal(ctx.selectedCount,3);assert.equal(ctx.restoredRareCount,5);
+assert(ctx.selector.includes('data-enemy-include'));assert(ctx.selector.includes('Nightmare Crystal'));
+assert(!source.includes('id="ignore-rares"'));

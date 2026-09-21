@@ -17,7 +17,7 @@ licenses.mkdir(exist_ok=True)
 with zipfile.ZipFile(root / "third-party-notices.zip") as z:
     z.extractall(licenses)
 shutil.copy2(Path(sys.base_prefix) / "LICENSE.txt", licenses / "Python.txt")
-for name in ("PyInstaller", "PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6"):
+for name in ("PyInstaller", "PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6", "truststore"):
     dist = importlib.metadata.distribution(name)
     dest = licenses / name
     dest.mkdir(exist_ok=True)

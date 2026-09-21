@@ -4,6 +4,68 @@ from app import Store,parse_report,normalize_record,statistics,boss_image
 from wiki_assets import WikiSprites
 
 class PendingReleaseTests(unittest.TestCase):
+    def test_individual_rare_choices(self):
+        report=json.loads(Path('exemplo.json').read_text(encoding='utf-8'))
+        record=parse_report(report)
+        record.update(category='mixed', enemies=[
+            dict(name='Nightmare Crystal',count=2,rare=True,included=False),
+            dict(name='Mega Aggron',count=3,rare=True,included=True),
+            dict(name='Aron',count=4,rare=False,included=True)])
+        saved=normalize_record(record)
+        self.assertEqual(saved['kills'],7)
+        self.assertEqual(saved['rare_kills'],3)
+        self.assertEqual(saved['profit'],record['profit'])
+        with tempfile.TemporaryDirectory() as d:
+            store=Store(Path(d)/'a.sqlite3');store.save(saved)
+            other=Store(Path(d)/'b.sqlite3');other.restore(store.backup())
+            restored=other.all()[0]
+            self.assertFalse(restored['enemies'][0]['included'])
+            report['Enemies Defeated']=[dict(Enemy=e['name'],Count=5,Rare=e['rare'],Player=record['player']) for e in record['enemies']]
+            updated=store.preview(report)['record']
+            self.assertFalse(updated['enemies'][0]['included'])
+            self.assertTrue(updated['enemies'][1]['included'])
+            restored['enemies'][0]['included']=True
+            self.assertEqual(normalize_record(restored)['rare_kills'],5)
+
+    def test_terror_zoroark_damage_counts_once(self):
+        from app import add_terror_zoroark
+        report = {'Damage': [dict(Enemy='Terror Zoroark', Player=p, **{'Damage dealt': 100})
+                             for p in ('A', 'B', 'C', 'D')]}
+        enemies = add_terror_zoroark(report, [])
+        self.assertEqual(len(enemies), 1)
+        self.assertEqual(enemies[0]['count'], 1)
+        self.assertEqual(add_terror_zoroark(report, enemies), enemies)
+        explicit = [dict(name='Terror Zoroark', count=2, included=False)]
+        self.assertEqual(add_terror_zoroark(report, explicit), explicit)
+        self.assertEqual(add_terror_zoroark({'Damage': [{'Enemy':'Terror Zoroark','Damage dealt':0}]}, []), [])
+        self.assertEqual(add_terror_zoroark({'Damage': [{'Enemy':'Zoroark','Damage dealt':100}]}, []), [])
+        solo = json.loads(Path('exemplo.json').read_text(encoding='utf-8'))
+        solo['Damage'] = [dict(report['Damage'][0], Player=solo['Drops'][0]['Player'])]
+        parsed = parse_report(solo)
+        self.assertEqual(sum(e['count'] for e in parsed['enemies'] if e['name']=='Terror Zoroark'), 1)
+
+    def test_party_uses_profile_characters_and_shared_bosses(self):
+        report = {'Session': {'Session type':'party','Session ID':1,'Start':'2026-09-21 15:00:00',
+                             'Duration seconds':3600,'Profit':999999},
+                  'Drops':[{'Player':p,'Item':'stone','Count':1,'Unit price':v} for p,v in [('Mine',100),('Maker',200),('Other',900)]],
+                  'Supplies':[{'Player':'Mine','Item':'potion','Count':1,'Unit price':10}],
+                  'Enemies Defeated':[{'Player':'Other','Enemy':'Terror Gyarados','Count':1},
+                                      {'Player':'Other','Enemy':'Pikachu','Count':9}],
+                  'Damage':[{'Player':'Other','Enemy':'Terror Zoroark','Damage dealt':100}]}
+        with tempfile.TemporaryDirectory() as directory:
+            store=Store(Path(directory)/'party.sqlite3')
+            with self.assertRaisesRegex(ValueError,'Cadastre'): store.preview(report)
+            store.save_profile({'name':'Test','characters':[' mine ','MAKER']})
+            record=store.preview(report)['record']
+            self.assertEqual(record['profit'],290)
+            self.assertIsNone(record['reported_profit'])
+            self.assertEqual(record['player'],'Maker + Mine')
+            self.assertEqual({e['name'] for e in record['enemies']},{'Terror Gyarados','Terror Zoroark'})
+            store.save(record)
+            self.assertTrue(store.preview(report)['exists'])
+            store.save_profile({'name':'Test','characters':['Missing']})
+            with self.assertRaisesRegex(ValueError,'Nenhum personagem'): store.preview(report)
+
     def test_prices_duplicates_backup_restore_and_ghost(self):
         report=json.loads(Path('exemplo.json').read_text(encoding='utf-8'))
         record=parse_report(report)

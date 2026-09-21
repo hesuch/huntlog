@@ -19,7 +19,7 @@ from wiki_assets import WikiSprites, TYPES as IMAGE_TYPES, key as pokemon_key, c
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DB = ROOT / "data" / "hunts.sqlite3"
-APP_VERSION = "0.6.4-desktop"
+APP_VERSION = "0.6.5-desktop"
 TERROR_IMAGES = json.loads((ROOT / "static" / "terror-images.json").read_text(encoding="utf-8"))
 DUNGEONS = json.loads((ROOT / "static" / "dungeons.json").read_text(encoding="utf-8"))
 DUNGEON_IMAGES = json.loads((ROOT / "static" / "dungeon-images.json").read_text(encoding="utf-8"))
@@ -284,7 +284,25 @@ def normalize_record(candidate):
     return record
 
 
-def parse_report(report):
+def add_terror_zoroark(report, enemies):
+    """The fight ends before a kill is logged; damage is evidence of one encounter."""
+    rows = report.get('Damage', [])
+    if not isinstance(rows, list):
+        return enemies
+    fought = any(isinstance(row, dict) and boss_key(str(row.get('Enemy') or '')) == boss_key('Terror Zoroark')
+                 and row.get('Ignored') is not True
+                 and isinstance(row.get('Damage dealt'), (int, float)) and row['Damage dealt'] > 0
+                 for row in rows)
+    if not fought:
+        return enemies
+    enemies = list(enemies or [])
+    # Never duplicate an explicit entry, including one the user chose to ignore.
+    if not any(boss_key(str(row.get('name') or '')) == boss_key('Terror Zoroark') for row in enemies):
+        enemies.append({'name': 'Terror Zoroark', 'count': 1, 'rare': False, 'included': True})
+    return enemies
+
+
+def parse_report(report, characters=None):
     if isinstance(report, str):
         try:
             report = json.loads(report.lstrip("\ufeff"))
@@ -293,6 +311,28 @@ def parse_report(report):
     if not isinstance(report, dict) or not isinstance(report.get("Session"), dict):
         raise ValueError("Não encontrei a seção Session. Cole o resumo completo da hunt.")
     session = report["Session"]
+    for section in ('Drops', 'Supplies', 'Enemies Defeated', 'Damage'):
+        if section in report and (not isinstance(report[section], list) or
+                                 any(not isinstance(row, dict) for row in report[section])):
+            raise ValueError(f'A seção {section} deve ser uma lista de registros.')
+    party_players = {label(row.get('Player')) for section in ('Drops', 'Supplies', 'Enemies Defeated', 'Damage')
+                     for row in report.get(section, []) if isinstance(row, dict) and label(row.get('Player'))}
+    party = session.get('Session type') == 'party' or len(party_players) > 1
+    selected = []
+    if party:
+        allowed = {label(name).casefold() for name in (characters or []) if label(name)}
+        if not allowed:
+            raise ValueError('Cadastre seus personagens em Meu perfil antes de importar uma party.')
+        selected = sorted((name for name in party_players if name.casefold() in allowed), key=str.casefold)
+        if not selected:
+            raise ValueError('Nenhum personagem desta party está cadastrado em Meu perfil. Confira os nomes.')
+        report = dict(report)
+        for section in ('Drops', 'Supplies'):
+            report[section] = [row for row in report.get(section, [])
+                               if isinstance(row, dict) and label(row.get('Player')).casefold() in allowed]
+        if isinstance(report.get('Enemies Defeated'), list):
+            report['Enemies Defeated'] = [row for row in report['Enemies Defeated'] if isinstance(row, dict) and
+                (label(row.get('Player')).casefold() in allowed or battle_image(label(row.get('Enemy')), 'mixed'))]
     items, players = [], set()
     for key, kind in (("Drops", "drop"), ("Supplies", "supply")):
         rows = report.get(key, [])
@@ -321,15 +361,16 @@ def parse_report(report):
                 players.add(player)
             enemies.append({"name": row.get("Enemy"), "count": row.get("Count"),
                             "rare": row.get("Rare") is True, "included": row.get("Ignored") is not True})
-    if len(players) > 1:
+    enemies = add_terror_zoroark(report, enemies)
+    if len(players) > 1 and not party:
         raise ValueError("Esta primeira versão aceita hunts de um personagem por resumo.")
     return normalize_record({
         "session_id": session.get("Session ID"), "started": session.get("Start"),
         "status": session.get("Status"),
-        "player": next(iter(players), label(session.get("Player")) or "Meu personagem"),
+        "player": ' + '.join(selected) if party else next(iter(players), label(session.get("Player")) or "Meu personagem"),
         "duration": session.get("Duration seconds"), "items": items, "enemies": enemies,
-        "reported_profit": session.get("Profit"), "reported_raw": session.get("Raw gains"),
-        "reported_supplies": session.get("Supplies"),
+        "reported_profit": None if party else session.get("Profit"), "reported_raw": None if party else session.get("Raw gains"),
+        "reported_supplies": None if party else session.get("Supplies"),
     })
 
 
@@ -516,7 +557,7 @@ class Store:
         return normalize_record(json.loads(row[0])) if row else None
 
     def preview(self, report):
-        record = parse_report(report)
+        record = parse_report(report, self.profile()['characters'])
         existing = self.get(record["id"])
         if existing:
             record["status"] = record["status"] or existing["status"]
@@ -524,6 +565,10 @@ class Store:
                 record[field] = existing[field]
             if record["enemies"] is None:
                 record["enemies"] = existing["enemies"]
+            rare_choices = {e['name']: e['included'] for e in existing['enemies'] or [] if e['rare']}
+            for enemy in record['enemies'] or []:
+                if enemy['rare'] and enemy['name'] in rare_choices:
+                    enemy['included'] = rare_choices[enemy['name']]
             snapshots = {(i["kind"], i["name"]): i for i in existing["items"]}
             for item in record["items"]:
                 saved = snapshots.get((item["kind"], item["name"]))

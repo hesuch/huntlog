@@ -3,12 +3,14 @@ import hashlib
 import json
 import re
 import shutil
+import ssl
 import subprocess
 import tempfile
 import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
+import truststore
 
 REPO = 'hesuch/huntlog'
 ASSET = 'Huntlog-Desktop-Windows.zip'
@@ -21,8 +23,19 @@ def version(value):
 
 def read_url(url, limit):
     request = urllib.request.Request(url, headers={'User-Agent': 'Huntlog-Updater', 'Accept': 'application/vnd.github+json'})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        result = response.read(limit + 1)
+    context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    try:
+        with urllib.request.urlopen(request, timeout=60, context=context) as response:
+            result = response.read(limit + 1)
+    except (urllib.error.URLError, ssl.SSLCertVerificationError) as error:
+        reason = getattr(error, 'reason', error)
+        if isinstance(reason, ssl.SSLCertVerificationError):
+            raise ValueError('Não foi possível validar a conexão segura com o GitHub. '
+                             'Confira a data e a hora do Windows e suas atualizações. '
+                             'Se continuar, baixe a versão pelo navegador em '
+                             'https://github.com/hesuch/huntlog/releases/latest. '
+                             'Nenhuma atualização foi instalada.') from error
+        raise
     if len(result) > limit:
         raise ValueError('Arquivo maior que o limite permitido')
     return result

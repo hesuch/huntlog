@@ -9,6 +9,23 @@ import json
 import updater
 
 class UpdaterTests(unittest.TestCase):
+    def test_native_tls_and_certificate_failure(self):
+        import ssl
+        import urllib.error
+        from unittest.mock import MagicMock
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b'OK'
+        with patch('updater.urllib.request.urlopen', return_value=response) as opening:
+            self.assertEqual(updater.read_url('https://api.github.com', 10), b'OK')
+            context = opening.call_args.kwargs['context']
+            self.assertTrue(context.check_hostname)
+            self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
+        failure = urllib.error.URLError(ssl.SSLCertVerificationError(1, 'invalid certificate'))
+        with patch('updater.urllib.request.urlopen', side_effect=failure) as opening:
+            with self.assertRaisesRegex(ValueError, 'Nenhuma atualização foi instalada'):
+                updater.read_url('https://api.github.com', 10)
+            self.assertEqual(opening.call_count, 1)
+
     def test_release_notes(self):
         for body, expected in [(None, 'Esta versão não possui novidades descritas.'),
                                ('  Novas abas\n- Correção do Ghost  ', 'Novas abas\n- Correção do Ghost'),
