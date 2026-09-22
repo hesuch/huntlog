@@ -1,15 +1,17 @@
-# Huntlog 0.6.6
+# HuntLog 0.6.7
 
 ## Novidades
 
-- Nova aba Profissão: recursos reconhecidos, quantidades, valores e pesquisa por item ou profissão. Usa os preços salvos em cada sessão e os filtros de período e local.
-- Na aba Hunts, os recursos de profissão e seus valores ficam separados. Os gastos continuam na hunt. A Visão geral e o Histórico mantêm o resultado completo, sem somar os recursos duas vezes. A separação também funciona no histórico já salvo.
-- Terrores ausentes em Enemies Defeated são identificados pelo dano causado. Nesse caso conta uma participação por Terror, com aviso: dano sozinho não confirma vitória nem o número de tentativas. Reimporte o JSON para aproveitar essa identificação.
-- Seishin e Yurei contam como um par: 2 Alakazam e 1 Gengar contam como 1; 2 de cada contam como 2.
-- Mystery Dungeons reconhecidas por bosses exclusivos já aparecem selecionadas na importação. Corrigidas as associações Noctu → Defeat The Darkness e Mewtwo → Mewtwo Strikes Back, com as imagens correspondentes. Casos sem regra ou ambíguos continuam com escolha manual.
+- Novo visual Pokédex, com carcaça vermelha e rolagem dentro do visor. Para voltar ao visual anterior, escolha Aparência → Atual na lateral.
+- Gerenciador de energia vermelha para todos os personagens cadastrados no perfil. Configure o saldo atual, o máximo, Rainbow Hero e o talento de regeneração (0 a 20%).
+- Botões para gastar 40 ou 52 de energia e adicionar 40 com Condensed Red Energy Potion. A recarga é calculada mesmo com o programa fechado e respeita o limite máximo.
+- Clique no nome do personagem para configurar a energia ou no ícone para trocar a foto por um arquivo, GIF ou link.
+- Backup e restauração agora ficam dentro de Meu perfil. Os novos backups incluem perfil, energia e fotos dos personagens, além do histórico e preços.
+- O resumo semanal abre automaticamente apenas uma vez para cada semana concluída neste navegador/aplicativo. Continua acessível pelo botão Resumo semanal.
+- Nome HuntLog revisado, cabeçalho repetido removido e créditos para HonDriX no rodapé. Perfil e moldura permanecem na posição enquanto você navega.
 
 ## Como atualizar
 
-Abra Atualizações → Verificar atualizações. Se a versão antiga apresentar erro de certificado, baixe o ZIP pelo navegador uma vez. Feche o Huntlog, extraia todo o ZIP para uma nova pasta e abra Huntlog.exe, mantendo _internal junto dele. Seus dados permanecem na pasta do usuário do Windows.
+No programa, abra Atualizações → Verificar atualizações. Ou baixe o ZIP, feche o HuntLog e extraia todo o conteúdo para uma nova pasta. Abra Huntlog.exe mantendo a pasta _internal junto dele.
 
-Faça um backup antes de atualizar. Versões anteriores à 0.6.4 podem deixar a janela oculta nessa transição: finalize o Huntlog no Gerenciador de Tarefas e abra novamente.
+Faça um backup antes de atualizar. Seu diário fica salvo separadamente, na pasta do usuário do Windows.

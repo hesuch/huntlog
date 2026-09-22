@@ -25,7 +25,7 @@ def resource_profession(name):
     key = pokemon_key(name)
     return PROFESSION_RESOURCES.get(key, PROFESSION_RESOURCES.get(key[:-1], '') if key.endswith('s') else '')
 
-APP_VERSION = "0.6.6-desktop"
+APP_VERSION = "0.6.7-desktop"
 TERROR_IMAGES = json.loads((ROOT / "static" / "terror-images.json").read_text(encoding="utf-8"))
 DUNGEONS = json.loads((ROOT / "static" / "dungeons.json").read_text(encoding="utf-8"))
 DUNGEON_IMAGES = json.loads((ROOT / "static" / "dungeon-images.json").read_text(encoding="utf-8"))
@@ -530,6 +530,72 @@ def validate_image(value):
 
 
 class Store:
+    @staticmethod
+    def energy_value(value):
+        import math
+        if not isinstance(value, dict):
+            raise ValueError('Configuração de energia inválida.')
+        result = {}
+        for key, default, low, high in [('current', 0, 0, 9999), ('maximum', 105, 1, 9999), ('talent', 0, 0, 20), ('updated', 0, 0, 9999999999)]:
+            val = value.get(key, default)
+            if isinstance(val, bool) or not isinstance(val, (int, float)) or not math.isfinite(val) or not low <= val <= high:
+                raise ValueError('Valor de energia inválido: ' + key)
+            result[key] = val
+        if result['current'] > result['maximum'] or result['maximum'] != int(result['maximum']):
+            raise ValueError('Confira a energia atual e a máxima.')
+        result['rainbow'] = value.get('rainbow', False)
+        if not isinstance(result['rainbow'], bool):
+            raise ValueError('Rainbow Hero inválida.')
+        result['image'] = validate_image(value.get('image', ''))
+        result['configured'] = value.get('configured', True) is True
+        return result
+
+    @staticmethod
+    def energy_now(value, now):
+        interval = (60 * (1 - value['talent'] / 100) - (15 if value['rainbow'] else 0)) * 60
+        current = min(value['maximum'], value['current'] + max(0, now - value['updated']) / interval) if value.get('configured', True) else 0
+        return {**value, 'current': current, 'updated': now, 'interval': interval}
+
+    def energy(self):
+        import time
+        now = time.time()
+        with self.connect() as connection:
+            row = connection.execute("SELECT value FROM settings WHERE name='energy'").fetchone()
+        saved = json.loads(row[0]) if row else {}
+        return {'characters': [{'name': name,
+                **self.energy_now(saved.get(name.casefold(), self.energy_value({'updated': now, 'configured': False})), now)}
+                for name in self.profile()['characters']], 'now': now}
+
+    def save_energy(self, body):
+        import time
+        name = label(body.get('name'), 80).casefold()
+        if name not in {n.casefold() for n in self.profile()['characters']}:
+            raise ValueError('Cadastre este personagem no perfil primeiro.')
+        now = time.time()
+        with self.connect() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            row = connection.execute("SELECT value FROM settings WHERE name='energy'").fetchone()
+            saved = json.loads(row[0]) if row else {}
+            current = self.energy_now(saved.get(name, self.energy_value({'updated': now, 'configured': False})), now)
+            action = body.get('action')
+            if action in ('spend40', 'spend52', 'potion'):
+                if not current['configured']:
+                    raise ValueError('Configure a energia atual do personagem primeiro.')
+                delta = {'spend40': -40, 'spend52': -52, 'potion': 40}[action]
+                if current['current'] + delta < 0:
+                    raise ValueError('Energia insuficiente.')
+                current['current'] = min(current['maximum'], current['current'] + delta)
+            elif action == 'image':
+                current['image'] = validate_image(body.get('image', ''))
+            elif action == 'configure':
+                current['configured'] = True
+                current.update({k: body.get(k) for k in ('current', 'maximum', 'talent', 'rainbow')})
+            else:
+                raise ValueError('Ação de energia inválida.')
+            saved[name] = self.energy_value(current)
+            connection.execute("INSERT INTO settings VALUES ('energy', ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value", (json.dumps(saved),))
+        return self.energy()
+
     def profile(self):
         with self.connect() as connection:
             row = connection.execute("SELECT value FROM settings WHERE name='profile'").fetchone()
@@ -693,6 +759,8 @@ class Store:
     @staticmethod
     def backup_payload(connection):
         return {"format": "huntlog-backup", "version": 1, "app_version": APP_VERSION,
+                "energy": json.loads(next(iter(connection.execute("SELECT value FROM settings WHERE name='energy'")), ['{}'])[0]),
+                "profile": json.loads(next(iter(connection.execute("SELECT value FROM settings WHERE name='profile'")), ['null'])[0]),
                 "created_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                 "hunts": [normalize_record(json.loads(r[0])) for r in
                           connection.execute("SELECT data FROM hunts ORDER BY started DESC")],
@@ -737,7 +805,18 @@ class Store:
             keys.add(key)
             prices.append({"kind": key[0], "name": key[1], "price": number(row.get("price"), "Preço do backup"),
                            "custom": row["custom"]})
-        return {"hunts": hunts, "prices": prices, "created_at": label(payload.get("created_at"), 80)}
+        extra = {}
+        if 'energy' in payload:
+            energy = payload['energy']
+            if not isinstance(energy, dict) or len(energy) > 500:
+                raise ValueError('Dados de energia inválidos no backup.')
+            extra['energy'] = {label(k, 80).casefold(): Store.energy_value(v) for k, v in energy.items()}
+        if payload.get('profile') is not None:
+            profile = payload['profile']
+            if not isinstance(profile, dict) or not isinstance(profile.get('characters'), list) or len(profile['characters']) > 500 or any(not isinstance(n, str) for n in profile['characters']):
+                raise ValueError('Perfil inválido no backup.')
+            extra['profile'] = {'name': label(profile.get('name'), 80) or 'Meu diário', 'characters': list(dict.fromkeys(label(n, 80) for n in profile['characters'] if label(n, 80))), 'image': validate_image(profile.get('image', ''))}
+        return {"hunts": hunts, "prices": prices, "created_at": label(payload.get("created_at"), 80), **extra}
 
     def restore_preview(self, payload):
         backup = self.validate_backup(payload)
@@ -762,6 +841,9 @@ class Store:
                 json.dump(recovery, file, ensure_ascii=False, allow_nan=False, indent=2)
             connection.execute("DELETE FROM hunts")
             connection.execute("DELETE FROM prices")
+            for key in ('energy', 'profile'):
+                if key in backup:
+                    connection.execute('INSERT INTO settings VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value', (key, json.dumps(backup[key])))
             connection.executemany("INSERT INTO hunts (id,started,data) VALUES (?,?,?)", [
                 (h["id"], h["started"], json.dumps(h, ensure_ascii=False, allow_nan=False)) for h in backup["hunts"]])
             connection.executemany("INSERT INTO prices (kind,name,price,custom) VALUES (?,?,?,?)", [
@@ -794,6 +876,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        if parsed.path == '/api/energy':
+            self.send_json(self.store.energy())
+            return
         if parsed.path == "/api/weekly":
             try:
                 weeks = int(parse_qs(parsed.query).get('weeks_ago', ['1'])[0])
@@ -852,7 +937,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "Ainda não há uma cópia de recuperação."}, 404)
         elif parsed.path == "/api/sample":
             self.send_json(json.loads((ROOT / "exemplo.json").read_text(encoding="utf-8")))
-        elif parsed.path in ("/vendor/html2canvas.min.js", "/", "/index.html", "/app.js", "/style.css", "/pokemon.css", "/favicon.svg", "/sprite-placeholder.svg"):
+        elif parsed.path in ("/vendor/html2canvas.min.js", "/", "/index.html", "/app.js", "/energy.js", "/style.css", "/pokemon.css", "/favicon.svg", "/sprite-placeholder.svg"):
             name = "index.html" if parsed.path == "/" else parsed.path.lstrip("/")
             file = ROOT / "static" / name
             content_types = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml"}
@@ -875,6 +960,8 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(size).decode("utf-8-sig"))
             if path == "/api/profile":
                 self.send_json(self.store.save_profile(body))
+            elif path == '/api/energy':
+                self.send_json(self.store.save_energy(body))
             elif path == "/api/images":
                 name = pokemon_key(label(body.get("name")))
                 if not name:
