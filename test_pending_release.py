@@ -4,6 +4,50 @@ from app import Store,parse_report,normalize_record,statistics,boss_image
 from wiki_assets import WikiSprites
 
 class PendingReleaseTests(unittest.TestCase):
+    def test_profession_partition(self):
+        from app import resource_profession
+        base=parse_report(json.loads(Path('exemplo.json').read_text(encoding='utf-8')))
+        base['items']=[dict(kind=k,name=n,count=c,price=p,included=i) for k,n,c,p,i in [
+            ('drop','Food Bag',10,100,True),('drop','stone',2,50,True),('supply','Food Bag',1,100,True),
+            ('drop','Tech Data',2,200,False)]]
+        r=normalize_record(base)
+        self.assertEqual(r['profession_raw'],1000)
+        self.assertEqual(r['hunt_profit']+r['profession_raw'],r['profit'])
+        self.assertEqual(r['items'][2]['profession'],'')
+        self.assertEqual(resource_profession('FOOD BAGS'),'Cozinheiro')
+        with tempfile.TemporaryDirectory() as d:
+            store=Store(Path(d)/'a.sqlite3');store.save(r)
+            other=Store(Path(d)/'b.sqlite3');other.restore(store.backup())
+            self.assertEqual(other.all()[0]['profession_raw'],1000)
+
+    def test_noctu_dungeon_location_and_suggestion(self):
+        base=parse_report(json.loads(Path('exemplo.json').read_text(encoding='utf-8')))
+        base.update(location='',location_source='auto',enemies=[dict(name='Noctu',count=1,rare=False,included=True)])
+        record=normalize_record(base)
+        self.assertEqual(record['suggested_category'],'mystery_dungeon')
+        record['category']='mystery_dungeon'
+        record=normalize_record(record)
+        self.assertEqual(record['location'],'Defeat The Darkness')
+        self.assertTrue(record['dungeon_image'])
+        self.assertEqual(record['kills'],1)
+        record['location']='Minha dungeon';record['location_source']='manual'
+        self.assertEqual(normalize_record(record)['location'],'Minha dungeon')
+
+    def test_terror_pair_and_damage_fallback(self):
+        from app import add_terror_zoroark
+        base=parse_report(json.loads(Path('exemplo.json').read_text(encoding='utf-8')))
+        for a,b,expected in [(2,1,1),(1,2,1),(2,2,2),(1,0,0)]:
+            record=dict(base,category='terror',enemies=[dict(name=n,count=c,included=True,rare=False) for n,c in [('Terror Alakazam',a),('Terror Gengar',b)]])
+            normalized=normalize_record(record)
+            self.assertEqual(normalized['kills'],expected)
+            self.assertEqual(normalize_record(normalized)['kills'],expected)
+        rows=[{'Enemy':n,'Damage dealt':100} for n in ('Terror Machamp','Terror Machamp','Terror Alakazam','Terror Gengar','Pikachu')]
+        inferred=add_terror_zoroark({'Damage':rows},[])
+        record=normalize_record(dict(base,category='terror',enemies=inferred))
+        self.assertEqual(record['kills'],2)
+        self.assertEqual(len([e for e in record['enemies'] if e['name']=='Terror Machamp']),1)
+        self.assertTrue(next(e for e in record['enemies'] if e['name']=='Seishin & Yurei')['damage_inferred'])
+
     def test_individual_rare_choices(self):
         report=json.loads(Path('exemplo.json').read_text(encoding='utf-8'))
         record=parse_report(report)

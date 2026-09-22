@@ -19,7 +19,13 @@ from wiki_assets import WikiSprites, TYPES as IMAGE_TYPES, key as pokemon_key, c
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DB = ROOT / "data" / "hunts.sqlite3"
-APP_VERSION = "0.6.5-desktop"
+PROFESSION_RESOURCES = {pokemon_key(name): profession for profession, names in json.loads(
+    (ROOT / 'static/profession-resources.json').read_text(encoding='utf-8'))['groups'].items() for name in names}
+def resource_profession(name):
+    key = pokemon_key(name)
+    return PROFESSION_RESOURCES.get(key, PROFESSION_RESOURCES.get(key[:-1], '') if key.endswith('s') else '')
+
+APP_VERSION = "0.6.6-desktop"
 TERROR_IMAGES = json.loads((ROOT / "static" / "terror-images.json").read_text(encoding="utf-8"))
 DUNGEONS = json.loads((ROOT / "static" / "dungeons.json").read_text(encoding="utf-8"))
 DUNGEON_IMAGES = json.loads((ROOT / "static" / "dungeon-images.json").read_text(encoding="utf-8"))
@@ -107,6 +113,9 @@ def location_suggestions(enemies):
     if known:
         hunt = known['name']
     matches = {name for name in DUNGEONS if pokemon_key(name) in totals}
+    for dungeon_name, aliases in BOSS_CATALOG['dungeons'].items():
+        if any(boss_key(alias) in totals and boss_key(alias) in BOSS_RULES['unique'] for alias in aliases):
+            matches.add(dungeon_name)
     if "gianttyranitar" in totals:
         matches.add("The Darkness")
     dungeon = next(iter(matches)) if len(matches) == 1 else ""
@@ -227,12 +236,15 @@ def normalize_record(candidate):
                             "count": number(enemy.get("reported_count", enemy.get("count")), "Pokémon derrotados", integer=True),
                             "reported_count": number(enemy.get("reported_count", enemy.get("count")), "Pokémon derrotados", integer=True),
                             "rare": is_rare_encounter(enemy["name"], enemy.get("rare")),
+                            "damage_inferred": enemy.get("damage_inferred") is True,
                             "included": enemy.get("included") is not False})
         enemies = cleaned
+    enemies = combine_terror_pair(enemies)
     ghost_adjustment = adjust_ghost_helpers(enemies or [], items)
     pokemon_names = POKEMON_NAMES | {pokemon_key(e["name"]) for e in enemies or []}
     pokemon_names |= {name.removeprefix("nightmare") for name in pokemon_names}
     for item in items:
+        item["profession"] = resource_profession(item["name"]) if item["kind"] == "drop" else ""
         item["is_capture"] = item["kind"] == "drop" and pokemon_key(item["name"]) in pokemon_names
     capture_count = sum(i["count"] for i in items if i["is_capture"] and i["included"])
     suggested_location = location_suggestions(enemies)[category]
@@ -241,10 +253,13 @@ def normalize_record(candidate):
     for enemy in enemies or []:
         enemy['image_name'] = battle_image(enemy['name'], category)
         enemy['counted'] = category in ('hunt', 'mixed') or boss_key(enemy['name']) in allowed or (category == 'terror' and bool(boss_image(enemy['name'], category)))
+        if boss_key(enemy['name']) in TERROR_PAIR:
+            enemy['counted'] = False
     kills = None if enemies is None else sum(e["count"] for e in enemies if counted_enemy(e))
     rare_kills = None if enemies is None else sum(e["count"] for e in enemies if counted_enemy(e) and e["rare"])
     raw = money_sum(i["total"] for i in items if i["kind"] == "drop" and i["included"])
     supplies = money_sum(i["total"] for i in items if i["kind"] == "supply" and i["included"])
+    profession_raw = money_sum(i["total"] for i in items if i["included"] and i.get("profession"))
     extras = number(candidate.get("extras", 0), "Gastos extras")
     profit = money_sum([raw, -supplies, -extras])
     identity = json.dumps([player.casefold(), started, session_id], ensure_ascii=False)
@@ -267,10 +282,13 @@ def normalize_record(candidate):
                          if category == "mystery_dungeon" else "",
         "hunt_image": (nightmare_hunt(location) or {}).get("image", "") if category == "hunt" else "",
         "location_suggestions": suggestions, "dungeon_options": DUNGEONS,
+        "suggested_category": ('mystery_dungeon' if suggestions['mystery_dungeon'] and not any(
+            counted_enemy(e) and bool(boss_image(e['name'], 'mixed')) for e in enemies or []) else ''),
         "hunt_options": [hunt['name'] for hunt in NIGHTMARE_HUNTS],
         "server": label(candidate.get("server")),
         "pokemon": label(candidate.get("pokemon")), "notes": label(candidate.get("notes"), 2000),
         "extras": extras, "items": items, "raw": raw, "supplies": supplies,
+        "profession_raw": profession_raw, "hunt_profit": money_sum([profit, -profession_raw]),
         "ghost_adjustment": ghost_adjustment,
         "enemies": enemies, "kills": kills, "rare_kills": rare_kills, "capture_count": capture_count,
         "boss_rules": BOSS_RULES,
@@ -284,21 +302,44 @@ def normalize_record(candidate):
     return record
 
 
+TERROR_PAIR_A = {boss_key(n) for n in ('Terror Alakazam', 'Seishin')}
+TERROR_PAIR_B = {boss_key(n) for n in ('Terror Gengar', 'Yurei')}
+TERROR_PAIR = TERROR_PAIR_A | TERROR_PAIR_B
+
+
 def add_terror_zoroark(report, enemies):
-    """The fight ends before a kill is logged; damage is evidence of one encounter."""
+    """Infer one participation for each Terror absent from the kill section."""
     rows = report.get('Damage', [])
     if not isinstance(rows, list):
         return enemies
-    fought = any(isinstance(row, dict) and boss_key(str(row.get('Enemy') or '')) == boss_key('Terror Zoroark')
-                 and row.get('Ignored') is not True
-                 and isinstance(row.get('Damage dealt'), (int, float)) and row['Damage dealt'] > 0
-                 for row in rows)
-    if not fought:
+    result = list(enemies or [])
+    known = {boss_key(e['name']) for e in result}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get('Enemy') or '')
+        key = boss_key(name)
+        if not BOSS_IMAGES.get(key, '').startswith('Nightmare Terror - '):
+            continue
+        if (key not in known and row.get('Ignored') is not True
+                and isinstance(row.get('Damage dealt'), (int, float)) and row['Damage dealt'] > 0):
+            result.append({'name': name, 'count': 1, 'rare': False, 'included': True, 'damage_inferred': True})
+            known.add(key)
+    return result if result else enemies
+
+
+def combine_terror_pair(enemies):
+    if enemies is None:
+        return None
+    components = [e for e in enemies if boss_key(e['name']) in TERROR_PAIR]
+    if not components:
         return enemies
-    enemies = list(enemies or [])
-    # Never duplicate an explicit entry, including one the user chose to ignore.
-    if not any(boss_key(str(row.get('name') or '')) == boss_key('Terror Zoroark') for row in enemies):
-        enemies.append({'name': 'Terror Zoroark', 'count': 1, 'rare': False, 'included': True})
+    enemies = [e for e in enemies if boss_key(e['name']) != boss_key('Seishin & Yurei')]
+    counts = [sum(e['count'] for e in components if e['included'] and boss_key(e['name']) in group)
+              for group in (TERROR_PAIR_A, TERROR_PAIR_B)]
+    count = min(counts)
+    enemies.append(dict(name='Seishin & Yurei', count=count, reported_count=count, rare=False,
+                        included=True, damage_inferred=any(e.get('damage_inferred') for e in components)))
     return enemies
 
 

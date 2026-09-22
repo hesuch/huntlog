@@ -29,3 +29,6 @@ vm.runInContext(`state.draft.enemies.push({name:'Nightmare Crystal',count:2,repo
 assert.equal(ctx.selectedCount,3);assert.equal(ctx.restoredRareCount,5);
 assert(ctx.selector.includes('data-enemy-include'));assert(ctx.selector.includes('Nightmare Crystal'));
 assert(!source.includes('id="ignore-rares"'));
+
+vm.runInContext(`globalThis.profRows=professionRows([{items:[{name:'Food Bag',profession:'Cozinheiro',included:true,count:2,total:100},{name:'Food Bag',profession:'Cozinheiro',included:false,count:2,total:100}]}]);globalThis.huntView=huntOnly({items:[{profession:'Cozinheiro'},{profession:''}],raw:150,profit:120,profession_raw:100,duration:60});`,ctx);
+assert.equal(ctx.profRows[0].count,2);assert.equal(ctx.huntView.profit,20);assert.equal(ctx.huntView.items.length,1);
