@@ -1,4 +1,4 @@
-HUNTLOG DESKTOP 0.6.6 — WINDOWS 64 BITS
+HUNTLOG DESKTOP 0.6.7 — WINDOWS 64 BITS
 
 COMO USAR
 1. Extraia TODO o conteúdo do ZIP para uma pasta do computador.
@@ -21,7 +21,7 @@ o histórico. O menu Arquivo > Abrir pasta dos meus dados mostra essa pasta.
 Fixados também são mantidos no perfil local do aplicativo.
 
 BACKUP
-Na aba Backup, exporte seu histórico e sua tabela de preços em JSON.
+Em Meu perfil > Backup e restauração, exporte histórico, preços, perfil e energia em JSON.
 Para levar também imagens personalizadas e preferências, feche o aplicativo e
 guarde uma cópia da pasta inteira de dados indicada acima.
 Você pode restaurar um backup JSON da versão anterior do Huntlog.
@@ -53,4 +53,3 @@ Use Atualizações > Verificar atualizações. O aplicativo também consulta ao 
 Ao confirmar, faz backup, baixa a nova versão, verifica o pacote e reinicia.
 Se a nova versão falhar no teste de abertura, restaura a anterior.
 A consulta depende de o repositório hesuch/huntlog estar público no GitHub.
-
